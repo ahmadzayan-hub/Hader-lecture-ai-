@@ -72,7 +72,7 @@ pnpm start
 
 These commands match the current manifest; the first three are the checks used by CI after a frozen-lockfile install. `pnpm start` needs a completed production build. The context-workspace release runs unit/contract tests, typecheck and production builds. Real microphone, provider-model and mobile/native acceptance remain separate. See the local-first guide.
 
-The manifest also declares `lint` and `test:e2e`. Neither is run by the current CI, and a declared script alone is not evidence of a configured, passing end-to-end suite.
+CI also runs the synthetic desktop/mobile `test:e2e` workflow after installing Chromium and uploads its screenshots. Those tests exercise imported fixtures, not microphones or real mobile hardware. The declared `lint` script is not a release check in this workflow.
 
 ## Repository map
 

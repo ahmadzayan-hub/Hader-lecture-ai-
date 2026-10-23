@@ -47,5 +47,5 @@ test("malformed import does not replace current evidence and demo stays labelled
   await expect(page.getByText("1 final segments")).toBeVisible()
   const sample = { format: "hader-session", version: 1, id: "demo", title: "Sample", createdAt: "2026-10-23T20:00:00.000Z", segments: [{ id: "s1", text: "Synthetic demonstration only.", offsetMs: 0, source: "demo" }] }
   await page.getByLabel("Import transcript file").setInputFiles({ name: "demo.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(sample)) })
-  await expect(page.getByText("DEMO", { exact: true })).toBeVisible()
+  await expect(page.getByText("Demo", { exact: true })).toBeVisible()
 })

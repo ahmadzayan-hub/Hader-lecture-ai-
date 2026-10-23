@@ -104,7 +104,7 @@ export default function AssistantPage() {
       </div>
     </header>
     <Card className="border-primary/30 bg-primary/5">
-      <p className="flex items-center gap-2 text-sm font-bold"><BrainCircuit className="size-4" /> Browser workspace · no API calls {hasDemo && <DemoBadge />}</p>
+      <p className="flex items-center gap-2 text-sm font-bold"><BrainCircuit className="size-4" /> Browser evidence workspace {hasDemo && <DemoBadge />}</p>
       <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{provider.detail}</p>
       <p className="mt-2 text-xs text-muted-foreground">Use a transcript you have permission to process. Imports and evidence lookup stay in this browser. Saving is explicit, unencrypted and device-local. This is context retrieval, not model training.</p>
       {provider.available && <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={useModel} onChange={e => setUseModel(e.target.checked)} /> Use the local model for draft answers. Selected text goes only to the local Hader server.</label>}

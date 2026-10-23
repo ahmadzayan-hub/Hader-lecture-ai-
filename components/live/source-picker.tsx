@@ -21,13 +21,13 @@ const SOURCES: {
   {
     id: "SYSTEM_AUDIO",
     label: "System audio",
-    hint: "Share the Teams window or entire screen and tick “Share system audio”. Video is dropped instantly.",
+    hint: "Choose a tab or screen that offers audio sharing. Some browsers, apps and phones provide no audio track. Video is dropped; real transcription needs an enabled engine.",
     icon: MonitorSpeaker,
   },
   {
     id: "MICROPHONE",
     label: "Microphone",
-    hint: "Listens to the room. Use this on a phone placed near the laptop speaker.",
+    hint: "Captures room sound, not another app’s internal audio. Browser recognition may use an external service. Obtain participant consent first.",
     icon: Mic,
   },
   {
