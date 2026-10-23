@@ -230,4 +230,5 @@ export type LectureBrief = {
   quiz: { question: string; answer: string }[]
   flashcards: { front: string; back: string }[]
   source: "qwen" | "local"
+  providerNotice?: string
 }

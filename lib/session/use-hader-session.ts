@@ -35,6 +35,8 @@ import {
   QwenChunkedEngine,
   SimulationEngine,
   browserAsrAvailable,
+  asrPlan,
+  isQwenAsrConfigured,
 } from "@/lib/asr/engines"
 import { AlertEngine, type EscalationStage } from "@/lib/alerts/engine"
 import { createAlertChannel, deviceIdentity, detectPlatform, type AlertChannel } from "@/lib/devices/channel"
@@ -43,7 +45,7 @@ import { transition as reduce, type SessionEvent } from "@/lib/session/machine"
 import { DEFAULT_PREFERENCES, type Preferences } from "@/lib/defaults"
 import type { NameProfile } from "@/lib/types"
 
-const MAX_TRANSCRIPT_SEGMENTS = 220
+const MAX_TRANSCRIPT_SEGMENTS = 10_000
 /** Rolling context handed to the verifier and the brief builder. */
 const CONTEXT_SEGMENTS = 6
 
@@ -106,6 +108,8 @@ export function useHaderSession(options: {
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
 
+  const runGeneration = useRef(0)
+  const sessionIdRef = useRef<string | null>(null)
   const captureRef = useRef<CaptureHandle | null>(null)
   const engineRef = useRef<AsrEngine | null>(null)
   const channelRef = useRef<AlertChannel | null>(null)
@@ -277,7 +281,7 @@ export function useHaderSession(options: {
 
       const event: DetectionEvent = {
         id: `evt_${Date.now().toString(36)}`,
-        sessionId: sessionId ?? "unsaved",
+        sessionId: sessionIdRef.current ?? "unsaved",
         timestamp: new Date().toISOString(),
         type: result.type,
         phrase: segment.text,
@@ -315,7 +319,9 @@ export function useHaderSession(options: {
       // Ambiguous band -> ask the text model, which can only advise.
       if (result.needsSemanticCheck) {
         dispatch({ type: "CANDIDATE" })
+        const generation = runGeneration.current
         void verifyRemotely(event, context, profile).then((verdict) => {
+          if (generation !== runGeneration.current) return
           if (!verdict) {
             dispatch({ type: "START_LISTENING" })
             return
@@ -345,12 +351,13 @@ export function useHaderSession(options: {
    * -------------------------------------------------------------- */
 
   const startEngineChain = useCallback(
-    async (capture: CaptureHandle | null, chosen: AudioSource) => {
+    async (capture: CaptureHandle | null, chosen: AudioSource, generation: number) => {
       const language = options.language === "en" ? "en" : options.language === "ar" ? "ar" : "ar"
 
       const callbacks = {
-        onSegment: handleSegment,
+        onSegment: (segment: TranscriptSegment) => { if (generation === runGeneration.current) handleSegment(segment) },
         onStatus: (status: AsrStatus, detail?: string) => {
+          if (generation !== runGeneration.current) return
           setAsrStatus(status)
           setAsrDetail(detail ?? "")
           if (status === "LISTENING") dispatch({ type: "START_LISTENING" })
@@ -358,23 +365,21 @@ export function useHaderSession(options: {
           else if (status === "DEGRADED") dispatch({ type: "ASR_DEGRADED", reason: "engine degraded" })
         },
         onFatal: (reason: string) => {
+          if (generation !== runGeneration.current) return
           setAsrDetail(reason)
           void fallback(reason)
         },
       }
 
-      // Ordered chain. Each level is tried only if the previous one fails.
-      const chain: Array<() => AsrEngine | null> = []
-
-      if (chosen === "SIMULATION") {
-        chain.push(() => new SimulationEngine(callbacks))
-      } else {
-        if (capture) chain.push(() => new QwenChunkedEngine(capture, callbacks, language))
-        if (browserAsrAvailable() && chosen === "MICROPHONE") {
-          chain.push(() => new BrowserSpeechEngine(callbacks, language))
-        }
-        chain.push(() => new SimulationEngine(callbacks))
-      }
+      // Select once before sending audio. Provider errors never trigger an unrequested provider switch.
+      const configuration = chosen === "SIMULATION" ? null : await fetch("/api/qwen/status", { cache: "no-store" })
+        .then(r => r.json()).catch(() => null)
+      if (generation !== runGeneration.current) return
+      const chain = asrPlan(chosen, Boolean(capture), browserAsrAvailable(), isQwenAsrConfigured(configuration)).map(id => () => {
+        if (id === "SIMULATION") return new SimulationEngine(callbacks)
+        if (id === "BROWSER_NATIVE") return new BrowserSpeechEngine(callbacks, language)
+        return capture ? new QwenChunkedEngine(capture, callbacks, language) : null
+      })
 
       let level = 0
 
@@ -390,6 +395,8 @@ export function useHaderSession(options: {
           return
         }
         setAsrStatus("ERROR")
+        setLastError("No real transcription engine is available. Import a transcript in Session Assistant or explicitly choose Simulation.")
+        captureRef.current?.stop()
         dispatch({ type: "FAIL", reason: "session error" })
       }
 
@@ -398,7 +405,8 @@ export function useHaderSession(options: {
         engineRef.current = null
         if (level >= chain.length) {
           setAsrStatus("ERROR")
-          setLastError(reason)
+          setLastError(`${reason} Import a transcript in Session Assistant. Simulation runs only when explicitly selected.`)
+          captureRef.current?.stop()
           dispatch({ type: "FAIL", reason: "session error" })
           return
         }
@@ -418,6 +426,7 @@ export function useHaderSession(options: {
 
   const start = useCallback(
     async (chosen: AudioSource) => {
+      const generation = ++runGeneration.current
       setLastError(null)
       setSource(chosen)
       dispatch({ type: "PREPARE" })
@@ -439,6 +448,7 @@ export function useHaderSession(options: {
           return
         }
 
+        if (generation !== runGeneration.current) { capture.stop(); return }
         captureRef.current = capture
         capture.onEnded(() => {
           setLastError("Audio sharing was stopped, so monitoring ended.")
@@ -451,6 +461,7 @@ export function useHaderSession(options: {
       }
 
       const id = `ses_${Date.now().toString(36)}`
+      sessionIdRef.current = id
       setSessionId(id)
       setStartedAt(Date.now())
       setSegments([])
@@ -458,14 +469,15 @@ export function useHaderSession(options: {
       lastAlertPhrase.current = ""
 
       dispatch({ type: "AUDIO_GRANTED" })
-      await startEngineChain(capture, chosen)
-      broadcast({ type: "SESSION_STATE", state: "LISTENING" })
+      await startEngineChain(capture, chosen, generation)
+      // Engine callbacks, not an attempted start, determine actual listening state.
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [broadcast, startEngineChain, dispatch],
   )
 
   const stop = useCallback(() => {
+    runGeneration.current += 1
     dispatch({ type: "STOP" })
     engineRef.current?.stop()
     engineRef.current = null

@@ -141,6 +141,8 @@ export default function LivePage() {
         </Card>
       )}
 
+      <Card className="border-primary/30"><Link href="/assistant" className="font-bold text-primary underline">Open Session Assistant · مساعد الجلسة</Link><p className="mt-2 text-xs text-muted-foreground">Catch up, find cited evidence, and prepare questions from the transcript. No automatic speaking or sending. Browser speech recognition may use an external service; it is not guaranteed offline. Confirm participants agree before capture.</p></Card>
+
       {/* Truthful status row. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatusCard

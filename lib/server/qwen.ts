@@ -7,6 +7,7 @@
  */
 
 import "server-only"
+import { providerFailure } from "@/lib/ai/provider-failure"
 
 export type QwenRegion = "singapore" | "beijing"
 
@@ -37,6 +38,8 @@ export class QwenRequestError extends Error {
     public readonly status: number,
     /** Safe, user-facing hint. Never contains credentials. */
     public readonly hint: string,
+    public readonly code = "PROVIDER_REQUEST_FAILED",
+    public readonly retryable = false,
   ) {
     super(message)
     this.name = "QwenRequestError"
@@ -55,7 +58,13 @@ export function readQwenConfig(): { ok: true; config: QwenConfig } | { ok: false
   // because some deployments provision the DashScope key under that name.
   const apiKey = (process.env.QWEN_API_KEY ?? process.env.API_KEY)?.trim() ?? ""
   const missing: string[] = []
+  if (process.env.HADER_PAID_PROVIDERS !== "1") missing.push("HADER_PAID_PROVIDERS=1 (explicit paid-provider opt-in)")
   if (!apiKey) missing.push("QWEN_API_KEY")
+  const asrModel = (process.env.QWEN_ASR_MODEL ?? process.env.QWEN_ASR_MODEL_2)?.trim() ?? ""
+  const textModel = (process.env.QWEN_TEXT_MODEL ?? process.env.QWEN_TEXT_MODEL_2)?.trim() ?? ""
+  const validModel = /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/
+  if (!validModel.test(asrModel)) missing.push("QWEN_ASR_MODEL (explicit compatible model ID)")
+  if (!validModel.test(textModel)) missing.push("QWEN_TEXT_MODEL (explicit compatible model ID)")
 
   if (missing.length) return { ok: false, missing }
 
@@ -67,10 +76,8 @@ export function readQwenConfig(): { ok: true; config: QwenConfig } | { ok: false
       apiKey,
       workspaceId: process.env.QWEN_WORKSPACE_ID?.trim() ?? "",
       region,
-      asrModel:
-        (process.env.QWEN_ASR_MODEL ?? process.env.QWEN_ASR_MODEL_2)?.trim() || "qwen3-asr-flash",
-      textModel:
-        (process.env.QWEN_TEXT_MODEL ?? process.env.QWEN_TEXT_MODEL_2)?.trim() || "qwen-plus",
+      asrModel,
+      textModel,
       host: REGION_HOSTS[region],
     },
   }
@@ -89,27 +96,6 @@ export function isQwenConfigured(): boolean {
 type ChatMessage = {
   role: "system" | "user" | "assistant"
   content: string | unknown[]
-}
-
-/** Maps upstream failures to actionable, non-leaking messages. */
-function describeStatus(status: number, body: string): string {
-  const snippet = body.slice(0, 200)
-  if (status === 401 || status === 403) {
-    return "Qwen rejected the credentials. Check QWEN_API_KEY and that the key matches QWEN_REGION."
-  }
-  if (status === 404) {
-    return "Model not found in this region. Check QWEN_ASR_MODEL / QWEN_TEXT_MODEL and QWEN_REGION."
-  }
-  if (status === 429) {
-    return "Qwen rate limit reached. Retry shortly or reduce sensitivity."
-  }
-  if (status >= 500) {
-    return "Qwen service error upstream. Hader will fall back to another engine."
-  }
-  if (/model/i.test(snippet) && /not/i.test(snippet)) {
-    return "Model unavailable for this account or region."
-  }
-  return "Qwen request failed."
 }
 
 async function qwenChat(
@@ -137,11 +123,8 @@ async function qwenChat(
 
     if (!response.ok) {
       const text = await response.text().catch(() => "")
-      throw new QwenRequestError(
-        `Qwen HTTP ${response.status}`,
-        response.status,
-        describeStatus(response.status, text),
-      )
+      const failure = providerFailure(response.status, text)
+      throw new QwenRequestError(`Qwen HTTP ${response.status}`, response.status, failure.hint, failure.code, failure.retryable)
     }
 
     const json = (await response.json()) as {
@@ -167,12 +150,13 @@ async function qwenChat(
   } catch (error) {
     if (error instanceof QwenRequestError) throw error
     if (error instanceof Error && error.name === "AbortError") {
-      throw new QwenRequestError("Qwen timeout", 504, "Qwen did not respond in time.")
+      throw new QwenRequestError("Qwen timeout", 504, "Provider timed out. Retry manually; no automatic replacement was used.", "PROVIDER_TIMEOUT", true)
     }
     throw new QwenRequestError(
       "Qwen network failure",
       503,
       "Could not reach Qwen. Check network connectivity.",
+      "PROVIDER_NETWORK", true,
     )
   } finally {
     clearTimeout(timer)

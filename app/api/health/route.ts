@@ -1,6 +1,6 @@
 import type { HealthReport, HealthState } from "@/lib/types"
 import { noStore } from "@/lib/server/api"
-import { pingQwen, readQwenConfig } from "@/lib/server/qwen"
+import { readQwenConfig } from "@/lib/server/qwen"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -24,7 +24,6 @@ export async function GET() {
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY,
   )
 
-  const llm = qwen.ok ? await pingQwen("text") : null
 
   const services: HealthReport["services"] = {
     app: { status: "healthy", detail: "Application running" },
@@ -35,13 +34,11 @@ export async function GET() {
       ? { status: "healthy", detail: "Supabase Realtime available" }
       : { status: "degraded", detail: "Cross-device sync unavailable without Supabase" },
     asr: qwen.ok
-      ? { status: "healthy", detail: `Qwen ASR model ${qwen.config.asrModel} configured` }
-      : { status: "degraded", detail: "Qwen not configured — browser/simulation fallback only" },
-    llm: !qwen.ok
-      ? { status: "degraded", detail: "Qwen not configured — local detection only" }
-      : llm?.ok
-        ? { status: "healthy", detail: `Authenticated in ${llm.latencyMs}ms` }
-        : { status: "down", detail: llm?.detail ?? "Qwen text model unreachable" },
+      ? { status: "degraded", detail: `Configured model ${qwen.config.asrModel}; availability and transcription not verified` }
+      : { status: "degraded", detail: "Paid transcription disabled or configuration incomplete. Use import or explicitly selected browser recognition." },
+    llm: { status: "degraded", detail: qwen.ok
+      ? `Configured model ${qwen.config.textModel}; use explicit provider test to verify access (may cost usage)`
+      : "Paid provider disabled or configuration incomplete; local evidence tools available" },
     push: pushConfigured
       ? { status: "healthy", detail: "Web Push keys configured" }
       : { status: "degraded", detail: "VAPID keys missing — in-app alerts only" },
