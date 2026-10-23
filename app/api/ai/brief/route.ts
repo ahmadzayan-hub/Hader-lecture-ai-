@@ -1,7 +1,7 @@
 import { briefRequestSchema, briefSchema } from "@/lib/schemas"
-import { errorResponse, handleRouteError, noStore, parseBody } from "@/lib/server/api"
+import { errorResponse, noStore, parseBody } from "@/lib/server/api"
 import { clientKey, rateLimit } from "@/lib/server/rate-limit"
-import { completeText, extractJson } from "@/lib/server/qwen"
+import { completeText, extractJson, QwenConfigError, QwenRequestError } from "@/lib/server/qwen"
 import { buildLocalBrief } from "@/lib/ai/local-brief"
 
 export const runtime = "nodejs"
@@ -48,14 +48,11 @@ export async function POST(request: Request) {
     const parsedBrief = briefSchema.safeParse(extractJson(text))
     if (!parsedBrief.success) {
       // Truthful degradation: return the local extractive brief and say so.
-      return noStore({ ...buildLocalBrief(transcript), source: "local" as const })
+      return noStore({ ...buildLocalBrief(transcript), source: "local" as const, providerNotice: "The model output failed validation. Showing local sentence extraction instead." })
     }
     return noStore({ ...parsedBrief.data, source: "qwen" as const })
   } catch (error) {
-    // If Qwen is unavailable we still deliver something real, clearly labelled.
-    if (process.env.QWEN_API_KEY) {
-      return noStore({ ...buildLocalBrief(transcript), source: "local" as const })
-    }
-    return handleRouteError(error, "ai/brief")
+    // A missing key is the normal free setup, not a failed summary.
+    return noStore({ ...buildLocalBrief(transcript), source: "local" as const, providerNotice: error instanceof QwenRequestError ? error.hint : error instanceof QwenConfigError ? "Paid AI is disabled or its key/model configuration is incomplete. Showing local sentence extraction." : "Provider unavailable. Showing local sentence extraction." })
   }
 }

@@ -1,34 +1,21 @@
-const CACHE = "qla-v32"
-self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(["./", "./index.html", "./manifest.webmanifest"]))
-  )
-  self.skipWaiting()
+// Cache static assets only. API health/provider status must always be fresh;
+// transcript requests and user-specific pages are never cached here.
+const CACHE = "hader-static-v1"
+self.addEventListener("install", () => self.skipWaiting())
+self.addEventListener("activate", event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(
+    keys.filter(key => key.startsWith("qla-") || (key.startsWith("hader-static-") && key !== CACHE)).map(key => caches.delete(key)),
+  )).then(() => self.clients.claim()))
 })
-self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-  )
-  self.clients.claim()
-})
-self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return
-  const url = new URL(e.request.url)
-  // Never cache the transformers model CDN or dev-server module requests
-  if (url.origin !== self.location.origin) return
-  e.respondWith(
-    caches.match(e.request).then(
-      (h) =>
-        h ||
-        fetch(e.request)
-          .then((r) => {
-            if (r.ok) {
-              const c = r.clone()
-              caches.open(CACHE).then((x) => x.put(e.request, c))
-            }
-            return r
-          })
-          .catch(() => caches.match("./index.html"))
-    )
-  )
+self.addEventListener("fetch", event => {
+  const url = new URL(event.request.url)
+  if (event.request.method !== "GET" || url.origin !== self.location.origin) return
+  if (!url.pathname.startsWith("/_next/static/")) return
+  event.respondWith(caches.open(CACHE).then(async cache => {
+    const cached = await cache.match(event.request)
+    if (cached) return cached
+    const response = await fetch(event.request)
+    if (response.ok) await cache.put(event.request, response.clone())
+    return response
+  }))
 })

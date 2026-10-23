@@ -12,7 +12,7 @@
  * can degrade honestly instead of showing a green light over a dead pipeline.
  */
 
-import type { AsrEngineId, AsrStatus, TranscriptSegment } from "@/lib/types"
+import type { AsrEngineId, AsrStatus, AudioSource, TranscriptSegment } from "@/lib/types"
 import type { CaptureHandle } from "@/lib/audio/capture"
 
 export interface AsrCallbacks {
@@ -58,6 +58,8 @@ export class QwenChunkedEngine implements AsrEngine {
   private timer: ReturnType<typeof setInterval> | null = null
   private running = false
   private consecutiveFailures = 0
+  private pending = new Set<AbortController>()
+  private generation = 0
   private language: string
 
   constructor(capture: CaptureHandle, callbacks: AsrCallbacks, language: string) {
@@ -74,6 +76,7 @@ export class QwenChunkedEngine implements AsrEngine {
     }
 
     this.running = true
+    const generation = ++this.generation
     this.callbacks.onStatus("CONNECTING")
 
     // Probe the server before claiming we are connected.
@@ -81,8 +84,9 @@ export class QwenChunkedEngine implements AsrEngine {
       .then((r) => r.json())
       .catch(() => null)
 
-    if (!probe?.asr?.configured) {
-      this.callbacks.onFatal(probe?.asr?.detail ?? "Qwen credentials are not configured on the server.")
+    if (!this.running || generation !== this.generation) return
+    if (!isQwenAsrConfigured(probe)) {
+      this.callbacks.onFatal("Paid Qwen transcription is disabled or not configured on this server.")
       return
     }
 
@@ -126,23 +130,40 @@ export class QwenChunkedEngine implements AsrEngine {
   }
 
   private async transcribe(blob: Blob, startedAt: number) {
-    // Silence gate: skip near-silent windows so we don't burn quota on nothing.
-    if (blob.size < 1200) return
+    // Bound concurrency and reject all late results after Stop/restart.
+    if (!this.running || blob.size < 1200) return
+    if (this.pending.size >= 2) {
+      this.callbacks.onStatus("DEGRADED", "Transcription is behind; this audio window was skipped. Transcript may be incomplete.")
+      return
+    }
+    const generation = this.generation
+    const controller = new AbortController()
+    this.pending.add(controller)
+    const timer = setTimeout(() => controller.abort(), 25_000)
 
     try {
       const base64 = await blobToBase64(blob)
+      if (!this.running || generation !== this.generation) return
       const response = await fetch("/api/asr/transcribe", {
+        signal: controller.signal,
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(buildTranscribeBody(base64, blob.type, this.language)),
       })
 
+      if (!this.running || generation !== this.generation) return
       if (!response.ok) {
-        this.registerFailure(`Transcription failed (${response.status}).`)
+        const payload = await response.json().catch(() => null)
+        if (!this.running || generation !== this.generation) return
+        const reason = payload?.error?.message ?? `Transcription failed (${response.status}).`
+        // Quota, credentials, configuration and model retirement are not transient audio errors.
+        if ([400, 401, 403, 404, 410, 422, 429].includes(response.status) || ["PROVIDER_DISABLED", "MISSING_KEY", "MODEL_NOT_CONFIGURED", "QUOTA_EXHAUSTED", "MODEL_UNAVAILABLE"].includes(payload?.error?.code)) this.callbacks.onFatal(reason)
+        else this.registerFailure(reason)
         return
       }
 
       const payload = (await response.json()) as { text?: string; latencyMs?: number }
+      if (!this.running || generation !== this.generation) return
       this.consecutiveFailures = 0
       this.callbacks.onStatus("LISTENING")
 
@@ -159,7 +180,10 @@ export class QwenChunkedEngine implements AsrEngine {
         latencyMs: payload.latencyMs,
       })
     } catch {
-      this.registerFailure("Network error while transcribing.")
+      if (this.running && generation === this.generation) this.registerFailure("Network error or timeout while transcribing.")
+    } finally {
+      clearTimeout(timer)
+      this.pending.delete(controller)
     }
   }
 
@@ -174,6 +198,9 @@ export class QwenChunkedEngine implements AsrEngine {
 
   stop(): void {
     this.running = false
+    this.generation += 1
+    for (const controller of this.pending) controller.abort()
+    this.pending.clear()
     if (this.timer) clearInterval(this.timer)
     this.timer = null
     if (this.recorder && this.recorder.state !== "inactive") this.recorder.stop()
@@ -391,4 +418,16 @@ export function buildTranscribeBody(audio: string, mimeType: string, language: s
     mimeType: mimeType && mimeType.length >= 3 ? mimeType : "audio/webm",
     language: language === "ar" || language === "en" ? language : "auto",
   } as const
+}
+
+/** Mirrors /api/qwen/status; do not expect a nonexistent nested asr object. */
+export function isQwenAsrConfigured(probe: unknown): boolean {
+  return typeof probe === "object" && probe !== null && "configured" in probe && probe.configured === true
+}
+
+/** Scripted text is allowed only when the user explicitly selects simulation. */
+export function asrPlan(source: AudioSource, hasCapture: boolean, hasBrowserAsr: boolean, qwenEnabled = true): AsrEngineId[] {
+  if (source === "SIMULATION") return ["SIMULATION"]
+  if (qwenEnabled && hasCapture) return ["QWEN_CHUNKED"]
+  return source === "MICROPHONE" && hasBrowserAsr ? ["BROWSER_NATIVE"] : []
 }

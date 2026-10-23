@@ -114,6 +114,7 @@ export default function NotesPage() {
         </Card>
       )}
 
+      {brief?.providerNotice && <p role="status" className="text-xs text-warn">{brief.providerNotice}</p>}
       {brief && (
         <div className="flex flex-col gap-4">
           <Card className={brief.source === "local" ? "border-warn/40 bg-warn/5" : "border-good/40 bg-good/5"}>

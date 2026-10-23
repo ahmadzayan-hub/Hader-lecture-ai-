@@ -35,3 +35,17 @@ jobs:
       # fixed by whatever typecheck or the tests already caught.
       - name: Build
         run: pnpm build
+
+      - name: Install browser for synthetic UI tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Desktop and mobile transcript workflow
+        run: pnpm test:e2e
+
+      - name: Upload synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: context-browser-evidence
+          path: test-results/
+          retention-days: 7

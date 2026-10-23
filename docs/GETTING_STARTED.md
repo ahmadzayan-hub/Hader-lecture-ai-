@@ -16,7 +16,7 @@ pnpm dev
 
 Open `http://localhost:3000`, review the profile and course settings, and choose Simulation for a controlled walkthrough. Do not infer that microphone or system audio is working from the simulation's activity.
 
-The current engine chain includes Qwen, browser-native recognition where supported, and simulation. Check the displayed engine and any fallback after a failure. In particular, browser SpeechRecognition does not prove that the system/tab stream selected for the Qwen path is being transcribed.
+Real capture uses enabled Qwen and browser-native microphone recognition where supported. Simulation is a separate explicit selection and is never an automatic fallback. Check the displayed engine and any fallback after a failure. In particular, browser SpeechRecognition does not prove that the system/tab stream selected for the Qwen path is being transcribed.
 
 ## Real audio checklist
 
@@ -34,7 +34,7 @@ The active code does not write raw audio to the local session history. Qwen mode
 | Capability | Variables read by the implementation | Boundary |
 | --- | --- | --- |
 | App origin | `NEXT_PUBLIC_APP_URL` | Use the actual development or deployed origin |
-| Qwen ASR/text | `QWEN_API_KEY`, optional `QWEN_WORKSPACE_ID`, `QWEN_REGION`, `QWEN_ASR_MODEL`, `QWEN_TEXT_MODEL` | Server-side only; region, model access and usage limits must match the account |
+| Qwen ASR/text | `HADER_PAID_PROVIDERS=1` (explicit paid opt-in), `QWEN_API_KEY`, optional `QWEN_WORKSPACE_ID`, `QWEN_REGION`, `QWEN_ASR_MODEL`, `QWEN_TEXT_MODEL` | Server-side only; region, model access and usage limits must match the account |
 | Cross-device Realtime | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Configures the transport, not a completed authorization or persistence design |
 | Push-related settings in the template | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Presence in an environment template does not establish working background delivery |
 
@@ -75,3 +75,7 @@ pnpm build
 - [ ] Legacy multi-format export and speech synthesis are either ported with tests or explicitly left unsupported.
 
 Keep the previous `src/` implementation and existing PWA assets intact while closing those gaps.
+
+## Local session assistant
+
+Open `/assistant` with no credentials to import TXT/SRT/VTT or Hader JSON, find exact evidence, review catch-up excerpts, prepare questions, and save/export a transcript. Imported files stay in the browser. Saving is explicit and unencrypted; export a JSON backup for portability. See [local-first architecture](LOCAL_FIRST_ARCHITECTURE.md) and [portable transcript format](TRANSCRIPT_FORMAT.md). Optional localhost inference requires running Hader and llama.cpp on the same computer and is disabled on Vercel. Native capture and Arabic model-quality acceptance are pending, not implied by the web UI.

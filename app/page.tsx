@@ -32,13 +32,15 @@ export default function HomePage() {
       <header>
         <Kicker>Home</Kicker>
         <h1 className="mt-1 text-balance text-2xl font-bold tracking-tight">
-          Never miss when your name is called
+          Follow the session. Understand what matters.
         </h1>
         <p className="mt-1 text-pretty text-xs leading-relaxed text-muted-foreground">
           Hader listens to the lecture, detects <span className="font-semibold text-foreground">{displayName}</span>,
           and escalates the alarm across your devices until you respond. It never answers for you.
         </p>
       </header>
+
+      <Card className="border-primary/30"><Link href="/assistant" className="text-sm font-bold text-primary underline">Open the local-first Session Assistant</Link><p className="mt-2 text-xs text-muted-foreground">Import a transcript, catch up, inspect evidence, prepare questions and export a portable session. No API key or name setup required.</p></Card>
 
       {/* Primary CTA */}
       <Card className="border-primary/30 bg-primary/5">

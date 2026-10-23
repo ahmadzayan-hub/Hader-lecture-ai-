@@ -29,9 +29,9 @@ const plexArabic = IBM_Plex_Sans_Arabic({
 })
 
 export const metadata: Metadata = {
-  title: "HADER AI | حاضر — Lecture Presence Copilot",
+  title: "HADER AI | حاضر — Lecture & Meeting Assistant",
   description:
-    "Realtime lecture monitoring that alerts you the moment your name is called, with cross-device escalation and an AI lecture brief.",
+    "Follow lectures and meetings with source-grounded transcript review, catch-up, proposed questions, optional local AI and name-call alerts.",
   applicationName: "HADER AI",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

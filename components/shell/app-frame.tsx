@@ -22,6 +22,7 @@ import { STATE_LABELS } from "@/lib/session/machine"
 const NAV = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/live", label: "Live Lecture", icon: Radio },
+  { href: "/assistant", label: "Session Assistant", icon: BrainCircuit },
   { href: "/sessions", label: "Sessions", icon: History },
   { href: "/courses", label: "Courses", icon: BookOpen },
   { href: "/devices", label: "Devices", icon: Smartphone },
@@ -35,7 +36,7 @@ const MOBILE_NAV = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/live", label: "Live", icon: Radio },
   { href: "/sessions", label: "History", icon: History },
-  { href: "/devices", label: "Devices", icon: Smartphone },
+  { href: "/assistant", label: "Assistant", icon: BrainCircuit },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 

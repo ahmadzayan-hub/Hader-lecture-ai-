@@ -2,7 +2,7 @@
 
 **Stay oriented during a live lecture, then turn the captured context into a useful study brief.** HADER brings audio-source checks, transcription, name-call alerts and session review into one React workspace.
 
-[Setup & privacy guide](docs/GETTING_STARTED.md) · [Current app](app) · [Tests](tests) · [Environment template](.env.example)
+[Local-first architecture & platform matrix](docs/LOCAL_FIRST_ARCHITECTURE.md) · [Setup & privacy guide](docs/GETTING_STARTED.md) · [Current app](app) · [Tests](tests) · [Environment template](.env.example)
 
 ## Who it helps
 
@@ -10,10 +10,19 @@ A student following a live lecture needs to know whether audio is actually being
 
 The app supports English and Arabic lecture context. Generated answers and briefs are aids to review, not a substitute for participation or a guarantee of accurate lecture content.
 
+## Start with local context
+
+Open **Session Assistant** (`/assistant`), paste or import a TXT/SRT/VTT transcript, ask for evidence, catch up, review possible actions and prepare questions. Save explicitly in this browser or export Hader JSON for backup and Maktab import. No credentials, model download or paid API calls are required. Exact-excerpt retrieval is clearly distinguished from optional local AI drafts.
+
+Paid providers are **off by default**, even if a Qwen key exists. A local Hader + llama.cpp installation can enable local generation; a Vercel deployment cannot access the user's localhost. See the architecture guide for honest platform/capture boundaries and uncompleted real-device acceptance.
+
 ## What is implemented
 
 | Capability | Implementation | Important limit |
 | --- | --- | --- |
+| Context assistant | Timestamped evidence lookup, catch-up, review candidates, proposed questions | Extractive baseline is not semantic AI; local model drafts still need review |
+| Portable transcripts | Validated TXT/SRT/VTT/Hader JSON imports; explicit save; JSON/text exports | 2 MB portable session limit; browser-local unencrypted storage is not cloud backup |
+| Local generation | Opt-in loopback-only llama.cpp adapter with validated citations | Requires local Hader, a separately installed model and device benchmarking; disabled on Vercel |
 | Capture preflight | Microphone or system/tab audio through browser media APIs, with a level meter | Browser, OS and selected sharing surface determine which audio is available |
 | Transcription | Qwen chunked transcription, browser SpeechRecognition and explicitly marked simulation | These are different engines; simulation is scripted, and browser recognition is not guaranteed offline |
 | Name-call detection | Alias matching, context checks, alert states and confirmation/false-alarm tracking | Recognition and matching can miss a call or produce a false alarm |
@@ -29,7 +38,7 @@ The current application is **Next.js 16 + React 19 + TypeScript**, using the pnp
 This is an implemented application with external-service paths and honest local fallbacks, **not a claim that every production workflow has passed acceptance**.
 
 - The client/server audio-field mismatch was fixed in [PR #5](https://github.com/ahmadzayan-hub/Hader-lecture-ai-/pull/5). The client now sends `audio`, with a schema-contract regression test. This fixes a contract defect; it does not replace a live recording test with the configured provider.
-- Qwen credentials stay on the server. Real Qwen transcription and generation send the relevant audio or text to that provider and may incur usage charges.
+- Qwen credentials stay on the server. Real Qwen transcription and generation send the relevant audio or text to that provider and may incur usage charges; they require `HADER_PAID_PROVIDERS=1`.
 - Session history is stored in the current browser. The active capture code does not save raw audio files, but that does not mean audio stays on the device when a remote transcription engine is selected.
 - Per-instance API rate limiting is present. Multi-user authorization, abuse controls, remote pairing privacy and background alert behavior still need deployment-specific acceptance.
 - The older implementation is preserved under `src/`. Its additional export formats and speech synthesis have **not** been ported into the current Next.js application.
@@ -61,7 +70,7 @@ pnpm build
 pnpm start
 ```
 
-These commands match the current manifest; the first three are the checks used by CI after a frozen-lockfile install. `pnpm start` needs a completed production build. This documentation review did not execute them or establish a fresh pass.
+These commands match the current manifest; the first three are the checks used by CI after a frozen-lockfile install. `pnpm start` needs a completed production build. The context-workspace release runs unit/contract tests, typecheck and production builds. Real microphone, provider-model and mobile/native acceptance remain separate. See the local-first guide.
 
 The manifest also declares `lint` and `test:e2e`. Neither is run by the current CI, and a declared script alone is not evidence of a configured, passing end-to-end suite.
 

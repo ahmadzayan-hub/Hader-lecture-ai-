@@ -45,10 +45,10 @@ export async function parseBody<S extends z.ZodType>(
 /** Converts thrown errors into safe responses and logs without secrets. */
 export function handleRouteError(error: unknown, scope: string) {
   if (error instanceof QwenConfigError) {
-    return errorResponse(503, "QWEN_NOT_CONFIGURED", error.message, { missing: error.missing })
+    return errorResponse(503, error.missing.some(v => v.startsWith("HADER_PAID")) ? "PROVIDER_DISABLED" : error.missing.includes("QWEN_API_KEY") ? "MISSING_KEY" : "MODEL_NOT_CONFIGURED", error.message, { missing: error.missing })
   }
   if (error instanceof QwenRequestError) {
-    return errorResponse(error.status >= 500 ? 502 : error.status, "QWEN_REQUEST_FAILED", error.hint)
+    return errorResponse(error.status >= 500 ? 502 : error.status, error.code, error.hint, { retryable: error.retryable })
   }
   console.error(`[hader] ${scope} failed:`, error instanceof Error ? error.message : "unknown")
   return errorResponse(500, "INTERNAL_ERROR", "Unexpected server error.")
