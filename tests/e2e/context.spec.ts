@@ -32,6 +32,8 @@ test("import, evidence, save, refresh and portable restore without paid calls", 
   await expect(page.getByText("4 final segments")).toBeVisible()
   await page.getByLabel("Import transcript file").setInputFiles({ name: "restored.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(parsed)) })
   await expect(page.getByText("4 final segments")).toBeVisible()
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.waitForTimeout(100)
   await page.screenshot({ path: `test-results/context-${test.info().project.name}.png`, fullPage: true })
   expect(posted).toEqual([])
   expect(errors).toEqual([])

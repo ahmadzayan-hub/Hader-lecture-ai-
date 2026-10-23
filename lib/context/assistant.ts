@@ -57,8 +57,8 @@ export function proposedQuestions(segments: ContextSegment[]): { text: string; c
   const ar = /[\u0600-\u06ff]/.test(segments.at(-1)?.text ?? "")
   const last = segments.at(-1)
   return [
-    ...candidates.actions.slice(-1).map(c => ({ text: ar ? "من المسؤول عن هذه المهمة، وما موعد التسليم المؤكد؟" : "Who owns this action, and what is the confirmed deadline?", citation: c })),
-    ...candidates.decisions.slice(-1).map(c => ({ text: ar ? "ما الأسباب والافتراضات وراء هذا القرار؟" : "What assumptions and trade-offs led to this decision?", citation: c })),
+    ...candidates.actions.slice(-1).map(c => ({ text: ar ? "هل توجد متابعة مطلوبة هنا؟ ومن المسؤول وما موعدها إن وجدت؟" : "Is follow-up needed here? If so, who owns it and when is it due?", citation: c })),
+    ...candidates.decisions.slice(-1).map(c => ({ text: ar ? "هل تم اتخاذ قرار هنا؟ وما الافتراضات التي تدعمه إن وجد؟" : "Was a decision made here, and what assumptions would support it?", citation: c })),
     ...(last ? [{ text: ar ? "هل يمكن توضيح هذه النقطة بمثال عملي؟" : "Could you illustrate this point with a practical example?", citation: citation(last) }] : []),
   ]
 }
