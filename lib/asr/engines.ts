@@ -134,7 +134,7 @@ export class QwenChunkedEngine implements AsrEngine {
       const response = await fetch("/api/asr/transcribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ audioBase64: base64, mimeType: blob.type, language: this.language }),
+        body: JSON.stringify(buildTranscribeBody(base64, blob.type, this.language)),
       })
 
       if (!response.ok) {
@@ -378,4 +378,17 @@ export class SimulationEngine implements AsrEngine {
     this.timer = null
     this.callbacks.onStatus("OFFLINE")
   }
+}
+
+/**
+ * The body /api/asr/transcribe accepts (lib/schemas.ts transcribeRequestSchema). Kept here, next
+ * to the only caller, and tested against that schema: the client once sent `audioBase64`, which
+ * the server rejected on every chunk.
+ */
+export function buildTranscribeBody(audio: string, mimeType: string, language: string) {
+  return {
+    audio,
+    mimeType: mimeType && mimeType.length >= 3 ? mimeType : "audio/webm",
+    language: language === "ar" || language === "en" ? language : "auto",
+  } as const
 }
