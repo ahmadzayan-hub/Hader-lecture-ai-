@@ -46,7 +46,7 @@ export const answerRequestSchema = z.object({
 export const answerSchema = z.object({
   short: z.string(),
   extended: z.string(),
-  keyPoints: z.array(z.string()),
+  keyPoints: z.array(z.string()).max(100),
   grounded: z.boolean(),
 })
 
@@ -54,13 +54,13 @@ export type AnswerDraft = z.infer<typeof answerSchema>
 
 export const briefSchema = z.object({
   summary: z.string(),
-  keyConcepts: z.array(z.string()).default([]),
-  definitions: z.array(z.object({ term: z.string(), meaning: z.string() })).default([]),
-  assignments: z.array(z.string()).default([]),
-  examPoints: z.array(z.string()).default([]),
-  questionsToReview: z.array(z.string()).default([]),
-  quiz: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
-  flashcards: z.array(z.object({ front: z.string(), back: z.string() })).default([]),
+  keyConcepts: z.array(z.string()).max(100).default([]),
+  definitions: z.array(z.object({ term: z.string(), meaning: z.string() })).max(100).default([]),
+  assignments: z.array(z.string()).max(100).default([]),
+  examPoints: z.array(z.string()).max(100).default([]),
+  questionsToReview: z.array(z.string()).max(100).default([]),
+  quiz: z.array(z.object({ question: z.string(), answer: z.string() })).max(100).default([]),
+  flashcards: z.array(z.object({ front: z.string(), back: z.string() })).max(100).default([]),
 })
 
 export const nameProfileSchema = z.object({
