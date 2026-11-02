@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "disclaimer": "SYNTHETIC FIXTURES. Every case below is invented text with hand-edited hypotheses. They prove that the scorer is reproducible, not that any transcription engine is accurate. Real accuracy evidence requires consented recordings and approved reference transcripts, which are not committed here (see README.md in this folder).",
+  "cases": [
+    {
+      "id": "ar-lecture-attendance",
+      "language": "ar",
+      "source": "synthetic",
+      "description": "Arabic lecture opening with an attendance call and a deadline.",
+      "reference": "طيب يا شباب، نبدأ المحاضرة الثالثة عن الشبكات العصبية. أحمد زيان موجود؟ تمام. التسليم يوم الخميس الساعة ٤ بعد الظهر، والدرجة من ١٠٠.",
+      "expectedNames": ["أحمد زيان"],
+      "expectedNumbers": ["٤", "١٠٠"],
+      "hypotheses": [
+        {
+          "engine": "synthetic-exact",
+          "note": "hypothesis equals the reference with different diacritics, digit script and punctuation",
+          "text": "طيّب يا شباب نبدأ المحاضرة الثالثة عن الشبكات العصبيّة احمد زيان موجود تمام التسليم يوم الخميس الساعة 4 بعد الظهر والدرجة من 100"
+        },
+        {
+          "engine": "synthetic-degraded",
+          "note": "name mangled, one number dropped, two substitutions",
+          "text": "طيب يا شباب نبدأ المحاضرة الثالثة عن الشبكات العصبية احمد زيدان موجود تمام التسليم يوم الخميس الساعة بعد الظهر والدرجه من 100 طيب"
+        }
+      ]
+    },
+    {
+      "id": "en-lecture-question",
+      "language": "en",
+      "source": "synthetic",
+      "description": "English lecture segment with a direct question to a student and a figure.",
+      "reference": "Before we move on, Ahmed, can you summarise what the loss function measures? Remember the assignment is due on March 12 and counts for 25 percent.",
+      "expectedNames": ["Ahmed"],
+      "expectedNumbers": ["12", "25"],
+      "hypotheses": [
+        {
+          "engine": "synthetic-exact",
+          "text": "before we move on ahmed can you summarise what the loss function measures remember the assignment is due on march 12 and counts for 25 percent"
+        },
+        {
+          "engine": "synthetic-degraded",
+          "note": "name misheard, number misheard, one deletion, one insertion",
+          "text": "Before we move on Amid can you summarise what the loss function measures. Remember the assignment is due on March 20 and counts for 25 percent okay"
+        }
+      ]
+    },
+    {
+      "id": "mixed-ar-en-terms",
+      "language": "mixed",
+      "source": "synthetic",
+      "description": "Arabic sentence with embedded English technical terms, typical of Gulf lectures.",
+      "reference": "اليوم بنشرح الـ gradient descent وبعدين الـ backpropagation. يا سارة، شو الفرق بين الـ batch size والـ epoch؟ الكويز الأسبوع الجاي بيكون ٢٠ سؤال.",
+      "expectedNames": ["سارة"],
+      "expectedNumbers": ["٢٠"],
+      "hypotheses": [
+        {
+          "engine": "synthetic-exact",
+          "text": "اليوم بنشرح ال gradient descent وبعدين ال backpropagation يا ساره شو الفرق بين ال batch size وال epoch الكويز الاسبوع الجاي بيكون 20 سؤال"
+        },
+        {
+          "engine": "synthetic-degraded",
+          "note": "English terms partially lost, name kept, number kept",
+          "text": "اليوم بنشرح ال gradient dissent وبعدين ال back propagation يا ساره شو الفرق بين ال batch size وال epic الكويز الاسبوع الجاي بيكون 20 سؤال"
+        }
+      ]
+    }
+  ]
+}

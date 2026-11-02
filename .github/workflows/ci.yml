@@ -31,6 +31,19 @@ jobs:
       - name: Tests
         run: pnpm test
 
+      # Deterministic scorer over committed SYNTHETIC fixtures. Proves the
+      # benchmark is reproducible; it is not evidence of real-lecture accuracy.
+      - name: ASR accuracy benchmark (synthetic fixtures)
+        run: pnpm asr:benchmark -- --json test-results/asr-benchmark.json --max-wer 0.5
+
+      - name: Upload ASR benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asr-benchmark-synthetic
+          path: test-results/asr-benchmark.json
+          retention-days: 30
+
       # Build last: it is the slowest step and the one most likely to be
       # fixed by whatever typecheck or the tests already caught.
       - name: Build
