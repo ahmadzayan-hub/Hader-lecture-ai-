@@ -85,12 +85,24 @@ Synthetic tests and a desktop browser smoke test are necessary but insufficient.
 
 | Test | Required evidence | Status |
 | --- | --- | --- |
-| Arabic ASR, dialect + English terms | Consented 10–30 minute sample, reference transcript, word error rate, missed names/numbers, device/model/revision | Pending real-device/model test |
+| Arabic ASR, dialect + English terms | Consented 10–30 minute sample, reference transcript, word error rate, missed names/numbers, device/model/revision | Scorer and synthetic harness in place (`pnpm asr:benchmark`); real consented sample pending |
 | Local generation | Citation validity, unsupported-answer rate, multilingual faithfulness, prompt-injection fixtures, p50/p95 latency and peak RAM | Adapter fixtures pass; real model pending |
 | 60–120 minute capture | Dropouts, overlapping chunks, pause/resume, app switch, screen lock, battery/thermal impact | Pending |
 | Windows/macOS/Android/iOS audio | Permission-denied, no-audio, source-app restrictions, headset/system switching | Pending device matrix |
 | Persistence | Refresh, export/import, denied storage, corrupt JSON, quota full, schema mismatch | Automated fixtures plus browser checks |
 | Communication safety | No automatic send/speak; suggestion distinct from meeting evidence | Code and browser checks; native stage pending |
+
+### Reproducible accuracy benchmark
+
+`pnpm asr:benchmark` scores hypothesis transcripts against reference transcripts with `lib/asr/accuracy.ts`: normalisation (tashkeel, alef/taa-marbuta/yaa variants, Arabic-Indic digits, case, punctuation), word error rate with substitution/deletion/insertion counts, character error rate, and missed expected names/numbers. The same manifest always produces the same numbers, and CI runs it over `tests/fixtures/asr-benchmark/manifest.json` and uploads the JSON report.
+
+The committed manifest is **synthetic**: invented text with hand-edited hypotheses. It verifies the scorer, not any engine. The report marks such runs `SYNTHETIC ONLY`. To produce real evidence for the table above, keep a private manifest outside the repository with `"source": "consented"` cases built from a consented recording, an approved reference transcript and the engine output (device, model id, revision and date in the hypothesis `note`), then run:
+
+```bash
+pnpm asr:benchmark -- --manifest /private/path/manifest.json --json report.json
+```
+
+No audio is captured and no provider is called by the benchmark; hypotheses are produced separately with the engine under test. See `tests/fixtures/asr-benchmark/README.md`.
 
 A separate security maintenance change updates Next to 16.4.1 and resolved sharp to 0.35.5 for [GHSA-2464-fhr4-w9xw](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw). No exploit testing was performed.
 
