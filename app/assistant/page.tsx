@@ -7,7 +7,7 @@ import { BrainCircuit, Download, Save, Upload } from "lucide-react"
 import { useHader } from "@/components/providers/hader-provider"
 import { Button, Card, DemoBadge, Kicker } from "@/components/ui/status"
 import { answerExtractively, catchUp, findEvidence, proposedQuestions, reviewCandidates, type Citation, type ContextAnswer } from "@/lib/context/assistant"
-import { exportText, formatOffset, fromLive, importTranscript, makeDocument, MAX_IMPORT_BYTES, readLibrary, storeDocument, LIBRARY_KEY, type SessionDocument } from "@/lib/context/session"
+import { exportMarkdown, exportSRT, exportText, exportVTT, formatOffset, fromLive, importTranscript, makeDocument, MAX_IMPORT_BYTES, readLibrary, storeDocument, LIBRARY_KEY, type SessionDocument } from "@/lib/context/session"
 
 function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }))
@@ -93,6 +93,15 @@ export default function AssistantPage() {
       setMessage("Export prepared. The file contains transcript text; share only with the intended recipient.")
     } catch { setMessage("No valid session to export yet.") }
   }
+  function exportAs(format: "srt" | "vtt" | "md") {
+    try {
+      const doc = currentDocument()
+      const body = format === "srt" ? exportSRT(doc) : format === "vtt" ? exportVTT(doc) : exportMarkdown(doc)
+      const type = format === "md" ? "text/markdown;charset=utf-8" : "text/plain;charset=utf-8"
+      download(`hader-session-${Date.now()}.${format}`, body, type)
+      setMessage("Export prepared. The file contains transcript text; share only with the intended recipient.")
+    } catch { setMessage("No valid session to export yet.") }
+  }
 
   return <div className="mx-auto flex max-w-[1600px] flex-col gap-4 p-4 sm:p-6">
     <header className="flex items-center gap-4">
@@ -117,6 +126,9 @@ export default function AssistantPage() {
             <Button disabled={!segments.length} onClick={save}><Save className="size-4" /> Save session</Button>
             <Button disabled={!segments.length} onClick={() => exportFile(true)}><Download className="size-4" /> JSON backup / Maktab</Button>
             <Button disabled={!segments.length} onClick={() => exportFile(false)}>Text export</Button>
+            <Button disabled={!segments.length} onClick={() => exportAs("md")}>Markdown export</Button>
+            <Button disabled={!segments.length} onClick={() => exportAs("srt")}>SRT export</Button>
+            <Button disabled={!segments.length} onClick={() => exportAs("vtt")}>VTT export</Button>
             {imported && <Button onClick={() => setImported(null)}>Use live context</Button>}
           </div>
           {session.segments.length >= 10_000 && !imported && <p className="mt-2 text-xs text-warn">Live context reached its 10,000-segment limit. Earlier lines may be missing. Export now and start a new session.</p>}

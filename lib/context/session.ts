@@ -85,6 +85,47 @@ export function exportText(doc: SessionDocument): string {
     `[${formatOffset(s.offsetMs)}] [${s.id}]${s.source === "demo" ? " [DEMO]" : ""} ${s.text}`).join("\n")
 }
 
+function pad(n: number, w = 2): string { return String(n).padStart(w, "0") }
+/** ms -> SRT timestamp 00:00:00,000. Untimed segments get a synthetic 3s cue starting where the prior cue ended. */
+function srtTime(ms: number): string {
+  const h = Math.floor(ms / 3_600_000)
+  const m = Math.floor((ms % 3_600_000) / 60_000)
+  const s = Math.floor((ms % 60_000) / 1000)
+  const msr = Math.floor(ms % 1000)
+  return `${pad(h)}:${pad(m)}:${pad(s)},${pad(msr, 3)}`
+}
+function vttTime(ms: number): string { return srtTime(ms).replace(",", ".") }
+/** Real offsets are kept; a null offset (untimed/pasted text) falls back to a synthetic 3s cue in sequence. */
+function cueTimes(doc: SessionDocument): Array<{ start: number; end: number }> {
+  let synthetic = 0
+  return doc.segments.map((s, i) => {
+    const start = s.offsetMs ?? synthetic
+    const next = doc.segments[i + 1]?.offsetMs
+    const end = next !== undefined && next !== null && next > start ? next : start + 3000
+    synthetic = start + 3000
+    return { start, end }
+  })
+}
+
+export function exportSRT(doc: SessionDocument): string {
+  const times = cueTimes(doc)
+  return doc.segments.map((s, i) =>
+    `${i + 1}\n${srtTime(times[i].start)} --> ${srtTime(times[i].end)}\n${s.text}\n`).join("\n")
+}
+
+export function exportVTT(doc: SessionDocument): string {
+  const times = cueTimes(doc)
+  return "WEBVTT\n\n" + doc.segments.map((s, i) =>
+    `${vttTime(times[i].start)} --> ${vttTime(times[i].end)}\n${s.text}\n`).join("\n")
+}
+
+export function exportMarkdown(doc: SessionDocument): string {
+  let md = `# ${doc.title}\n\nHader transcript. Imported speech may contain errors.\n\n`
+  md += doc.segments.map(s =>
+    `- **[${formatOffset(s.offsetMs)}]**${s.source === "demo" ? " *(demo)*" : ""} ${s.text}`).join("\n")
+  return md + "\n"
+}
+
 export const LIBRARY_KEY = "hader.context-library.v1"
 export interface StorageLike { getItem(key: string): string | null; setItem(key: string, value: string): void }
 export function readLibrary(storage: StorageLike): SessionDocument[] {
