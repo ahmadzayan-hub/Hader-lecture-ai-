@@ -7,7 +7,8 @@ import { BrainCircuit, Download, Save, Upload } from "lucide-react"
 import { useHader } from "@/components/providers/hader-provider"
 import { Button, Card, DemoBadge, Kicker } from "@/components/ui/status"
 import { answerExtractively, catchUp, findEvidence, proposedQuestions, reviewCandidates, type Citation, type ContextAnswer } from "@/lib/context/assistant"
-import { exportText, formatOffset, fromLive, importTranscript, makeDocument, MAX_IMPORT_BYTES, readLibrary, storeDocument, LIBRARY_KEY, type SessionDocument } from "@/lib/context/session"
+import { exportMarkdown, exportPrintableHTML, exportSRT, exportText, exportVTT, formatOffset, fromLive, importTranscript, makeDocument, MAX_IMPORT_BYTES, readLibrary, storeDocument, LIBRARY_KEY, type SessionDocument } from "@/lib/context/session"
+import { isSpeechSupported, speak, stopSpeaking } from "@/lib/tts"
 
 function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }))
@@ -32,6 +33,7 @@ export default function AssistantPage() {
   const [catchup, setCatchup] = useState<Citation[] | null>(null)
   const [filter, setFilter] = useState("")
   const [selectedId, setSelectedId] = useState("")
+  const [speakingId, setSpeakingId] = useState<string | null>(null)
   const live = useMemo(() => fromLive(session.segments, session.startedAt ?? Date.now()), [session.segments, session.startedAt])
   const segments = imported?.segments ?? live
   const title = imported?.title ?? (lecture.course || "Live session")
@@ -46,7 +48,8 @@ export default function AssistantPage() {
     catch { setMessage("Saved library could not be read. Existing data was not overwritten. Export or recover your browser data before saving.") }
     void fetch("/api/context", { cache: "no-store" }).then(r => r.json()).then(setProvider).catch(() => {})
   }, [])
-  useEffect(() => { requestSeq.current += 1; setBusy(false); setAnswer(null); setCatchup(null); setSelectedId("") }, [imported?.id, session.sessionId])
+  useEffect(() => { requestSeq.current += 1; setBusy(false); setAnswer(null); setCatchup(null); setSelectedId(""); stopSpeaking(); setSpeakingId(null) }, [imported?.id, session.sessionId])
+  useEffect(() => stopSpeaking, [])
 
   function currentDocument() {
     return imported ?? makeDocument(title, segments, session.sessionId ?? undefined)
@@ -93,6 +96,34 @@ export default function AssistantPage() {
       setMessage("Export prepared. The file contains transcript text; share only with the intended recipient.")
     } catch { setMessage("No valid session to export yet.") }
   }
+  function exportAs(format: "srt" | "vtt" | "md") {
+    try {
+      const doc = currentDocument()
+      const body = format === "srt" ? exportSRT(doc) : format === "vtt" ? exportVTT(doc) : exportMarkdown(doc)
+      const type = format === "md" ? "text/markdown;charset=utf-8" : "text/plain;charset=utf-8"
+      download(`hader-session-${Date.now()}.${format}`, body, type)
+      setMessage("Export prepared. The file contains transcript text; share only with the intended recipient.")
+    } catch { setMessage("No valid session to export yet.") }
+  }
+  function printDocument() {
+    try {
+      const html = exportPrintableHTML(currentDocument())
+      const win = window.open("", "_blank")
+      if (!win) { setMessage("Could not open the print window. Allow pop-ups for this site and try again.") ; return }
+      win.document.write(html)
+      win.document.close()
+      setMessage("Print window opened in a new tab. Use its Print / Save as PDF button, or your browser's print option.")
+    } catch { setMessage("No valid session to export yet.") }
+  }
+  function readAloud(id: string, text: string) {
+    if (!isSpeechSupported()) { setMessage("Reading aloud isn't supported in this browser."); return }
+    setSpeakingId(id)
+    speak(text, () => setSpeakingId(current => current === id ? null : current))
+  }
+  function stopReading() {
+    stopSpeaking()
+    setSpeakingId(null)
+  }
 
   return <div className="mx-auto flex max-w-[1600px] flex-col gap-4 p-4 sm:p-6">
     <header className="flex items-center gap-4">
@@ -117,6 +148,10 @@ export default function AssistantPage() {
             <Button disabled={!segments.length} onClick={save}><Save className="size-4" /> Save session</Button>
             <Button disabled={!segments.length} onClick={() => exportFile(true)}><Download className="size-4" /> JSON backup / Maktab</Button>
             <Button disabled={!segments.length} onClick={() => exportFile(false)}>Text export</Button>
+            <Button disabled={!segments.length} onClick={() => exportAs("md")}>Markdown export</Button>
+            <Button disabled={!segments.length} onClick={() => exportAs("srt")}>SRT export</Button>
+            <Button disabled={!segments.length} onClick={() => exportAs("vtt")}>VTT export</Button>
+            <Button disabled={!segments.length} onClick={printDocument}>Print / Save as PDF</Button>
             {imported && <Button onClick={() => setImported(null)}>Use live context</Button>}
           </div>
           {session.segments.length >= 10_000 && !imported && <p className="mt-2 text-xs text-warn">Live context reached its 10,000-segment limit. Earlier lines may be missing. Export now and start a new session.</p>}
@@ -141,7 +176,7 @@ export default function AssistantPage() {
         </Card>
         <Card>
           <h2 className="font-bold">Transcript evidence</h2>
-          {selected && <div id="source-evidence" tabIndex={-1} className="mt-3 rounded-lg border border-primary bg-primary/5 p-3"><p className="text-xs text-primary">Source [{selected.id}] · {formatOffset(selected.offsetMs)} · {selected.source}</p><p className="mt-2 whitespace-pre-wrap text-sm" dir="auto">{selected.text}</p></div>}
+          {selected && <div id="source-evidence" tabIndex={-1} className="mt-3 rounded-lg border border-primary bg-primary/5 p-3"><p className="text-xs text-primary">Source [{selected.id}] · {formatOffset(selected.offsetMs)} · {selected.source}</p><p className="mt-2 whitespace-pre-wrap text-sm" dir="auto">{selected.text}</p>{isSpeechSupported() && <button className="mt-2 text-xs text-primary underline" onClick={() => speakingId === selected.id ? stopReading() : readAloud(selected.id, selected.text)}>{speakingId === selected.id ? "Stop reading" : "Read aloud"}</button>}</div>}
           <input aria-label="Search transcript" placeholder="Search transcript / ابحث في النص" className="mt-3 w-full rounded border border-border bg-background p-2 text-sm" value={filter} onChange={e => setFilter(e.target.value)} />
           <p className="mt-2 text-xs text-muted-foreground">Showing the latest {shown.length} matching lines. Export includes all {segments.length} retained lines. Timestamps are capture/subtitle times, not verified speaker timing.</p>
           <div className="mt-2 max-h-96 overflow-auto"><Evidence items={shown.map(s => ({ segmentId: s.id, quote: s.text, offsetMs: s.offsetMs }))} onSelect={jump} /></div>
@@ -154,7 +189,7 @@ export default function AssistantPage() {
           try { const next = library.filter(s => s.id !== doc.id); localStorage.setItem(LIBRARY_KEY, JSON.stringify(next)); setLibrary(next); setMessage("Removed the saved copy. An open session remains available until you leave.") } catch { setMessage("Could not remove the saved session.") }
         }}>Remove saved copy</button></li>)}</ul></Card>
         <Card className="order-3"><h2 className="font-bold">Possible actions / decisions</h2><p className="mt-1 text-xs text-muted-foreground">Keyword candidates, not confirmed commitments. Check owner, deadline, negation and later corrections in the transcript.</p><h3 className="mt-3 text-xs font-bold">Action candidates</h3><Evidence items={candidates.actions} onSelect={jump} /><h3 className="mt-3 text-xs font-bold">Decision candidates</h3><Evidence items={candidates.decisions} onSelect={jump} /></Card>
-        <Card className="order-3"><h2 className="font-bold">Questions you could ask</h2><p className="mt-1 text-xs text-muted-foreground">Suggested templates, not statements from the meeting. Review and ask yourself. No automatic speaking or sending.</p><ul className="mt-3 space-y-3">{suggestions.map((s, i) => <li key={i} className="rounded border border-border p-2"><p dir="auto" className="text-sm">{s.text}</p><button className="mt-2 text-xs text-primary underline" onClick={() => jump(s.citation.segmentId)}>Context [{s.citation.segmentId}]</button></li>)}</ul></Card>
+        <Card className="order-3"><h2 className="font-bold">Questions you could ask</h2><p className="mt-1 text-xs text-muted-foreground">Suggested templates, not statements from the meeting. Review and ask yourself. No automatic speaking or sending.</p><ul className="mt-3 space-y-3">{suggestions.map((s, i) => { const id = `suggestion-${i}`; return <li key={i} className="rounded border border-border p-2"><p dir="auto" className="text-sm">{s.text}</p><div className="mt-2 flex items-center gap-3"><button className="text-xs text-primary underline" onClick={() => jump(s.citation.segmentId)}>Context [{s.citation.segmentId}]</button>{isSpeechSupported() && <button className="text-xs text-primary underline" onClick={() => speakingId === id ? stopReading() : readAloud(id, s.text)}>{speakingId === id ? "Stop reading" : "Read aloud"}</button>}</div></li> })}</ul></Card>
       </aside>
     </div>
   </div>

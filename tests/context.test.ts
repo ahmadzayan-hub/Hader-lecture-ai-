@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { importTranscript, makeDocument, fromLive, storeDocument, readLibrary, sessionDocumentSchema, exportText, LIBRARY_KEY } from "@/lib/context/session"
+import { importTranscript, makeDocument, fromLive, storeDocument, readLibrary, sessionDocumentSchema, exportText, exportMarkdown, exportPrintableHTML, exportSRT, exportVTT, LIBRARY_KEY } from "@/lib/context/session"
 import { answerExtractively, catchUp, reviewCandidates, proposedQuestions, validateModelAnswer } from "@/lib/context/assistant"
 import { askLocalModel, isLocalRequest, localModelEnabled, localModelHealth } from "@/lib/context/local-model"
 import { isQwenAsrConfigured, asrPlan } from "@/lib/asr/engines"
@@ -33,6 +33,44 @@ describe("portable session context", () => {
     expect(() => importTranscript("00:00:03.000 --> 00:00:02.000\nBad", "x.vtt")).toThrow()
     expect(() => importTranscript("No timings", "x.srt")).toThrow()
     expect(() => importTranscript(" ")).toThrow()
+  })
+  it("exports valid SRT cues: each cue ends where the next one starts (end timestamps are not retained on import), with a synthetic 3s fallback for untimed text", () => {
+    const srt = exportSRT(doc)
+    expect(srt).toContain("1\n00:00:01,000 --> 00:05:03,000\nThe assignment is due Sunday.\n")
+    expect(srt).toContain("2\n00:05:03,000 --> 00:06:00,000\n")
+    expect(srt).toContain("3\n00:06:00,000 --> 00:06:03,000\nNo final budget has been approved.\n")
+    const untimed = makeDocument("Untimed", importTranscript("First line\nSecond line").segments)
+    expect(exportSRT(untimed)).toBe("1\n00:00:00,000 --> 00:00:03,000\nFirst line\n\n2\n00:00:03,000 --> 00:00:06,000\nSecond line\n")
+  })
+  it("exports valid WEBVTT cues with periods instead of commas", () => {
+    const vtt = exportVTT(doc)
+    expect(vtt.startsWith("WEBVTT\n\n")).toBe(true)
+    expect(vtt).toContain("00:00:01.000 --> 00:05:03.000\nThe assignment is due Sunday.\n")
+  })
+  it("exports Markdown with offsets and demo provenance, never inventing content", () => {
+    const md = exportMarkdown(doc)
+    expect(md.startsWith(`# ${doc.title}\n\n`)).toBe(true)
+    expect(md).toContain("- **[00:00:01]** The assignment is due Sunday.")
+    const demo = makeDocument("Demo", [{ id: "d1", text: "Demo line", offsetMs: null, source: "demo" }])
+    expect(exportMarkdown(demo)).toContain("- **[Untimed]** *(demo)* Demo line")
+  })
+  it("builds a print-ready HTML document with escaped text, per-line direction and a print trigger, never inventing content", () => {
+    const html = exportPrintableHTML(doc)
+    expect(html).toContain(`<title>${doc.title}</title>`)
+    expect(html).toContain(`<h1>${doc.title}</h1>`)
+    expect(html).toContain("[00:00:01]")
+    expect(html).toContain("The assignment is due Sunday.")
+    expect(html).toContain('dir="rtl"')
+    expect(html).toContain('dir="ltr"')
+    expect(html).toContain("onclick=\"window.print()\"")
+    const unsafe = makeDocument("T<i>tle</i>", [{ id: "u1", text: `<script>alert(1)</script> & "quoted" 'text'`, offsetMs: null, source: "import" }])
+    const unsafeHTML = exportPrintableHTML(unsafe)
+    expect(unsafeHTML).not.toContain("<script>alert(1)</script>")
+    expect(unsafeHTML).toContain("&lt;script&gt;alert(1)&lt;/script&gt;")
+    expect(unsafeHTML).toContain("&amp;")
+    expect(unsafeHTML).toContain("&quot;quoted&quot;")
+    const demo = makeDocument("Demo", [{ id: "d1", text: "Demo line", offsetMs: null, source: "demo" }])
+    expect(exportPrintableHTML(demo)).toContain('<span class="demo">DEMO</span>')
   })
   it("rejects duplicate source IDs and future schema versions", () => {
     expect(sessionDocumentSchema.safeParse({ ...doc, segments: [doc.segments[0], doc.segments[0]] }).success).toBe(false)
