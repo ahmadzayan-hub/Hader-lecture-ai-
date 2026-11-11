@@ -7,7 +7,7 @@ import { BrainCircuit, Download, Save, Upload } from "lucide-react"
 import { useHader } from "@/components/providers/hader-provider"
 import { Button, Card, DemoBadge, Kicker } from "@/components/ui/status"
 import { answerExtractively, catchUp, findEvidence, proposedQuestions, reviewCandidates, type Citation, type ContextAnswer } from "@/lib/context/assistant"
-import { exportMarkdown, exportSRT, exportText, exportVTT, formatOffset, fromLive, importTranscript, makeDocument, MAX_IMPORT_BYTES, readLibrary, storeDocument, LIBRARY_KEY, type SessionDocument } from "@/lib/context/session"
+import { exportMarkdown, exportPrintableHTML, exportSRT, exportText, exportVTT, formatOffset, fromLive, importTranscript, makeDocument, MAX_IMPORT_BYTES, readLibrary, storeDocument, LIBRARY_KEY, type SessionDocument } from "@/lib/context/session"
 
 function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }))
@@ -102,6 +102,16 @@ export default function AssistantPage() {
       setMessage("Export prepared. The file contains transcript text; share only with the intended recipient.")
     } catch { setMessage("No valid session to export yet.") }
   }
+  function printDocument() {
+    try {
+      const html = exportPrintableHTML(currentDocument())
+      const win = window.open("", "_blank")
+      if (!win) { setMessage("Could not open the print window. Allow pop-ups for this site and try again.") ; return }
+      win.document.write(html)
+      win.document.close()
+      setMessage("Print window opened in a new tab. Use its Print / Save as PDF button, or your browser's print option.")
+    } catch { setMessage("No valid session to export yet.") }
+  }
 
   return <div className="mx-auto flex max-w-[1600px] flex-col gap-4 p-4 sm:p-6">
     <header className="flex items-center gap-4">
@@ -129,6 +139,7 @@ export default function AssistantPage() {
             <Button disabled={!segments.length} onClick={() => exportAs("md")}>Markdown export</Button>
             <Button disabled={!segments.length} onClick={() => exportAs("srt")}>SRT export</Button>
             <Button disabled={!segments.length} onClick={() => exportAs("vtt")}>VTT export</Button>
+            <Button disabled={!segments.length} onClick={printDocument}>Print / Save as PDF</Button>
             {imported && <Button onClick={() => setImported(null)}>Use live context</Button>}
           </div>
           {session.segments.length >= 10_000 && !imported && <p className="mt-2 text-xs text-warn">Live context reached its 10,000-segment limit. Earlier lines may be missing. Export now and start a new session.</p>}
