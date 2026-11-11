@@ -21,7 +21,7 @@ Paid providers are **off by default**, even if a Qwen key exists. A local Hader 
 | Capability | Implementation | Important limit |
 | --- | --- | --- |
 | Context assistant | Timestamped evidence lookup, catch-up, review candidates, proposed questions | Extractive baseline is not semantic AI; local model drafts still need review |
-| Portable transcripts | Validated TXT/SRT/VTT/Hader JSON imports; explicit save; JSON/text/Markdown/SRT/VTT exports; browser print-to-PDF | 2 MB portable session limit; browser-local unencrypted storage is not cloud backup |
+| Portable transcripts | Validated TXT/SRT/VTT/Hader JSON imports; explicit save; JSON/text/Markdown/SRT/VTT exports; browser print-to-PDF; manual read-aloud via browser speech synthesis | 2 MB portable session limit; browser-local unencrypted storage is not cloud backup; speechSynthesis cannot be routed to a specific output device, and voice availability depends on the browser/OS |
 | Local generation | Opt-in loopback-only llama.cpp adapter with validated citations | Requires local Hader, a separately installed model and device benchmarking; disabled on Vercel |
 | Capture preflight | Microphone or system/tab audio through browser media APIs, with a level meter | Browser, OS and selected sharing surface determine which audio is available |
 | Transcription | Qwen chunked transcription, browser SpeechRecognition and explicitly marked simulation | These are different engines; simulation is scripted, and browser recognition is not guaranteed offline |
@@ -41,7 +41,7 @@ This is an implemented application with external-service paths and honest local 
 - Qwen credentials stay on the server. Real Qwen transcription and generation send the relevant audio or text to that provider and may incur usage charges; they require `HADER_PAID_PROVIDERS=1`.
 - Session history is stored in the current browser. The active capture code does not save raw audio files, but that does not mean audio stays on the device when a remote transcription engine is selected.
 - Per-instance API rate limiting is present. Multi-user authorization, abuse controls, remote pairing privacy and background alert behavior still need deployment-specific acceptance.
-- The older implementation is preserved under `src/`. Its Session Assistant export formats (Markdown, SRT, VTT, print-to-PDF) have been ported into the current Next.js application's transcript export; speech synthesis has **not**.
+- The older implementation is preserved under `src/`. Its Session Assistant export formats (Markdown, SRT, VTT, print-to-PDF) and speech synthesis (manual "Read aloud" on the selected transcript source and on each suggested question) have both been ported into the current Next.js application.
 
 Source baseline: [`49202b2`](https://github.com/ahmadzayan-hub/Hader-lecture-ai-/tree/49202b2ab418a6cb43e56a46b24a94dbb69e7f8f). No live deployment or provider call is certified by this README.
 
@@ -92,7 +92,7 @@ CI also runs the synthetic desktop/mobile `test:e2e` workflow after installing C
 The earlier Vite code remains useful reference material. In particular:
 
 - `src/export/ExportCenter.js` supports JSON, Markdown, PDF, SRT, TXT and VTT. The Session Assistant transcript export now also supports Markdown, SRT, VTT and print-to-PDF (`lib/context/session.ts`'s `exportPrintableHTML`, opened in a new tab for the browser's own print dialog — no PDF library). The Sessions history export (detection counters, not transcript text) remains JSON only.
-- `src/response/TTS.js` implements speech synthesis; the current app has no equivalent.
+- `src/response/TTS.js` implemented speech synthesis with Arabic-voice preference and a file-reply fallback; the current app's `lib/tts.ts` ports the voice-selection logic (per-call, not a single global preference) behind a manual "Read aloud" button. The file-reply/output-device-routing path was not ported — it depended on the legacy `caps`/device layer this app doesn't have.
 
 Do not delete these modules or advertise their features as current until an intentional port or retirement has been reviewed. Other historical counterparts map to `lib/server/qwen.ts`, `lib/detection/`, `lib/ai/local-brief.ts`, `lib/asr/` and `lib/session/`.
 
